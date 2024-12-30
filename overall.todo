@@ -1,0 +1,27 @@
+LoGar:
+    Log Data Reading and Preprocessing:
+        ☐ Add support for handling larger files in chunks to prevent memory overflow
+        ☐ Implement log file categorization based on metadata (e.g., timestamp, log level)
+        ☐ Parse and preprocess log files to extract structured data (e.g., JSON logs or key-value pairs)
+    Embedding Generation:
+        ✔ Fix issues with loading precomputed embeddings from `temp/np_vecs` @done(24-12-13 00:12)
+        ☐ Optimize embedding generation for large datasets by implementing batching logic
+        ☐ Improve embedding quality by experimenting with hyperparameters and model options
+        ☐ Add support for switching between different embedding models dynamically
+    Vector Store:
+        ☐ Refactor the chunking logic for embeddings to avoid overlaps or gaps in data
+        ☐ Enable indexing of documents based on additional metadata fields
+        ☐ Implement efficient deletion and update mechanisms for logs in the database
+        ☐ Ensure embeddings are properly stored and retrieved without data loss or corruption
+    RAG: 
+        ☐ Create a document retriever module using `llama-index` to fetch relevant log documents @high
+        ☐ Develop a query augmentation function to improve retrieval relevance
+        ☐ Integrate the retriever with the MongoDB vector store for similarity searches
+        ☐ Pass retrieved results to an open-source LLM for generating QA responses
+    Query and Answer Generation:
+        ☐ Build a pipeline to combine user queries with retrieved log data for LLM processing
+        ☐ Format retrieved data into prompts compatible with the LLM input format
+        ☐ Optimize LLM outputs for QA, ensuring concise and accurate answers
+
+    Issues:
+        ☐ need a method to add vectors of variable length to index @critical

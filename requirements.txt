@@ -1,5 +1,8 @@
+chardet
 motor
 pymongo
+python-dotenv
+faiss-gpu-cu12
 transformers
 llama-index-core
 llama-index-readers-file

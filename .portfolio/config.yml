@@ -1,0 +1,32 @@
+# .portfolio/config.yml
+name: LoGar - Log Analysis and QA System
+slug: logar
+description: >
+  An open-source application for analyzing log files and performing question-answering (QA) tasks on them.
+  Leverages cutting-edge vector search, embeddings, and retrieval-augmented generation (RAG) techniques 
+  to extract insights from log files effectively using CodeBERT, SentenceTransformer, FAISS, and MongoDB.
+tech_stack:
+  - Python
+  - MongoDB
+  - CodeBERT
+  - SentenceTransformer
+  - FAISS
+  - HNSW
+  - LlamaIndex
+  - Transformers
+  - PyMongo
+  - CUDA
+  - RAG
+tags:
+  - AI/ML
+  - Log Analysis
+  - RAG
+  - Vector Search
+  - NLP
+is_active: true
+readme_path: Readme.md
+repo_url: https://github.com/Namasivaayam-L/loGar
+thumbnail: https://raw.githubusercontent.com/Namasivaayam-L/loGar/main/.portfolio/cover.png
+created_at: 2025-11-27
+updated_at: 2025-11-27
+featured: false

@@ -81,7 +81,7 @@ def search_logs(query: str, top_k: int = 5):
     logger.info(f"Total Time = {end - start}")
     logger.info(f"Top {top_k} Document Chunks:")
     for doc in similar_chunks:
-        logger.info(doc['doc_id'], doc['text'])
+        logger.info(f"{doc['doc_id']}: {doc['text']}")
 
 
 

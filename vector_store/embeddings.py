@@ -41,18 +41,16 @@ class CodeBERTEmbeddings:
 
     def get_embeddings(self, texts: List[str], idx: int = None, file_path: str = None):
         try:
-            save_path = os.path.join(os.path.dirname(file_path) if file_path else "./temp/query_embeddings", f"{idx}_chunk" if idx else f"{datetime.now().strftime('%H:%M:%S:%d:%m:%Y')}")
-            if os.path.exists(save_path):
-                logging.debug("Loading Embeddings from %s", save_path)
-                flattened_embeddings =  np.load(save_path)
-                return flattened_embeddings
-            else:
-                logging.debug(f"Generating Embeddings and saving at :{save_path}")
-                os.makedirs(os.path.dirname(save_path), exist_ok = True)
+            # Generate embeddings without local file storage - rely on MongoDB file metadata tracking
+            if file_path and file_path.strip():  # This is for files (either full file or chunks)
+                logging.debug(f"Generating embeddings for {'file' if idx is None else 'chunk'}: {file_path}")
                 embeddings = self._generate_embeddings(texts)
-                np.savez_compressed(save_path, embeddings.flatten())
-                logging.debug("Embeddings saved to %s", save_path)
-                return embeddings.flatten().tolist()
+                return embeddings.flatten().tolist() if embeddings is not None else None
+            else:
+                # For queries or when no file_path provided, just generate and return
+                logging.debug("Generating embeddings for query (not saving)")
+                embeddings = self._generate_embeddings(texts)
+                return embeddings.flatten().tolist() if embeddings is not None else None
         except Exception as e:
             logging.error("Error in get_embeddings: %s", e, exc_info=True)
             return None
@@ -90,7 +88,12 @@ class FaissEmbeddings:
     def search(self, query_vectors, k=10):
         try:
             logging.debug("Searching Faiss index for k=%d nearest neighbors", k)
-            distances, indices = self.index.search([query_vectors] if len(query_vectors.shape) == 1 else query_vectors, k)
+            # Ensure query_vectors is a numpy array with proper shape
+            if isinstance(query_vectors, list):
+                query_vectors = np.array(query_vectors, dtype=np.float32)
+            if len(query_vectors.shape) == 1:
+                query_vectors = query_vectors.reshape(1, -1)
+            distances, indices = self.index.search(query_vectors, k)
             logging.debug("Distances: %s, Indices: %s", distances, indices)
             return distances, indices
         except Exception as e:

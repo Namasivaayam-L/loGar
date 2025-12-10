@@ -7,29 +7,29 @@ from llama_index.core import Document
 class LogDirectoryReader:
     def __init__(self, directory_path: str, embeddings_model):
         self.directory_path = directory_path
-        self.embeddings_model=embeddings_model
+        self.embeddings_model = embeddings_model
         
-    def _extract_data(self,file_path) -> str:
+    def _extract_data(self, file_path) -> str:
         with open(file_path, 'rb') as f:
             encoding = chardet.detect(f.read())['encoding']
             
         with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
             return "".join(f)
 
-    def load_data(self)-> List[Document]:
+    def load_data(self) -> List[Document]:
         log_documents = []
         for root, _, files in os.walk(self.directory_path):
-            log_files = [file for file in files if file.endswith(".log")]
+            log_files = [file for file in files if file.endswith(".log")][:1]
             for filename in tqdm(log_files, desc=f"Processing Log Files:"):
                 file_path = os.path.join(root, filename)
                 content = self._extract_data(file_path)
-                # embeddings = self.embeddings_model.get_embeddings(content,file_path)
                 
+                # Create document without pre-generating embeddings
+                # The vector store will handle duplicate checking and embedding generation
                 log_documents.append(
                     Document(
                         doc_id=file_path,
                         text=content,
-                        # embedding=embeddings,
                         metadata={
                             "file_name": filename,
                             "category": "log",

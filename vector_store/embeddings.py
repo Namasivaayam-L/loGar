@@ -64,9 +64,19 @@ class SentenceTransformerEmbeddings:
         logging.debug("Model name: %s", self.model_name)
         self.model = SentenceTransformer(self.model_name)
 
-    def get_embeddings(self, sentences):
+    def get_embeddings(self, texts, idx=None, file_path=None):
         try:
-            return self.model.encode(sentences)
+            # Handle both single string and list of strings
+            if isinstance(texts, str):
+                texts = [texts]
+                # If single string was passed, return the first (and only) embedding
+                embeddings = self.model.encode(texts, show_progress_bar=False)
+                if len(texts) == 1:
+                    return embeddings[0].tolist()  # Return single embedding as 1D list
+                else:
+                    return embeddings.tolist()
+            else:
+                return self.model.encode(texts, show_progress_bar=False).tolist()
         except Exception as e:
             logging.error("Error generating embeddings: %s", e, exc_info=True)
             return None

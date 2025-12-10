@@ -1,6 +1,5 @@
 import os
 import chardet
-from tqdm import tqdm
 from typing import List
 from llama_index.core import Document
 
@@ -20,7 +19,7 @@ class LogDirectoryReader:
         log_documents = []
         for root, _, files in os.walk(self.directory_path):
             log_files = [file for file in files if file.endswith(".log")][:1]
-            for filename in tqdm(log_files, desc=f"Processing Log Files:"):
+            for filename in log_files:  # Removed tqdm progress bar
                 file_path = os.path.join(root, filename)
                 content = self._extract_data(file_path)
                 

@@ -6,6 +6,8 @@ from llama_index.core import Document
 from vector_store.embeddings import FaissEmbeddings
 import logging
 import hashlib
+import re
+from tqdm import tqdm
 
 class MongoDBVectorStore(VectorStore):
     def __init__(self, db_name, collection_name, embeddings_model, vector_index_name, mongodb_client):
@@ -21,9 +23,14 @@ class MongoDBVectorStore(VectorStore):
         # Get the actual embedding dimension by generating a test embedding
         test_embedding = self.embeddings_model.get_embeddings(["test"], 0, "test")
         if isinstance(test_embedding, list):
-            self.embedding_dim = len(test_embedding)
+            if isinstance(test_embedding[0], list):
+                self.embedding_dim = len(test_embedding[0])  # For SentenceTransformer
+            else:
+                self.embedding_dim = len(test_embedding)
+        elif hasattr(test_embedding, 'shape'):
+            self.embedding_dim = test_embedding.shape[-1] if len(test_embedding.shape) > 0 else 768
         else:
-            self.embedding_dim = len(test_embedding.flatten()) if hasattr(test_embedding, 'flatten') else 768  # Default fallback
+            self.embedding_dim = 768  # Default fallback
             
         logging.info(f"Using embedding dimension: {self.embedding_dim}")
         self.faiss_idx = FaissEmbeddings(self.embedding_dim)
@@ -34,13 +41,15 @@ class MongoDBVectorStore(VectorStore):
         self.file_metadata_collection.create_index("content_hash")
         
         # logging.info("Deleting existing documents from logs collection")
-        # self.logs_collection.delete_many({})
+        self.logs_collection.delete_many({})
         logging.info("Creating index on logs collection")
         self.logs_collection.create_index([
             ("doc_id", pymongo.ASCENDING), 
             ("chunk_idx", pymongo.ASCENDING)
             ], unique=True
         )
+        # Create text index for exact phrase matching
+        self.logs_collection.create_index([("text", pymongo.TEXT)])
         logging.info("Index created successfully")
 
     def _calculate_file_hash(self, file_path):
@@ -101,26 +110,38 @@ class MongoDBVectorStore(VectorStore):
     
     def add(self, log_documents: List[Document]):        
         documents = []
+        
+        # Calculate total chunks for progress bar
+        total_chunks = 0
         for doc in log_documents:
-            # Check if file has already been processed with same content
-            if self._is_file_processed(doc.doc_id):
-                logging.info(f"Skipping {doc.doc_id} - already processed with same content")
-                continue
+            if not self._is_file_processed(doc.doc_id):
+                text_chunks, _ = self._create_chunks(doc.doc_id, doc.text)
+                total_chunks += len(text_chunks)
+        
+        # Process documents with progress bar
+        with tqdm(total=total_chunks, desc="Processing and indexing chunks") as pbar:
+            for doc in log_documents:
+                # Check if file has already been processed with same content
+                if self._is_file_processed(doc.doc_id):
+                    logging.info(f"Skipping {doc.doc_id} - already processed with same content")
+                    continue
+                    
+                logging.info(f"Processing {doc.doc_id} - new or changed file")
+                text_chunks, embedding_chunks = self._create_chunks(doc.doc_id, doc.text)
+                logging.info(f"Inserting chunks into Faiss index")
                 
-            logging.info(f"Processing {doc.doc_id} - new or changed file")
-            text_chunks, embedding_chunks = self._create_chunks(doc.doc_id, doc.text)
-            logging.info(f"Inserting chunks into Faiss index")
-            for i, chunk in enumerate(embedding_chunks):
-                # Add to Faiss index first to get the index position
-                self.faiss_idx.add(np.array([chunk], dtype=np.float32))
-                # Store document with the corresponding Faiss index
-                doc_data = {"doc_id": doc.doc_id, "chunk_idx": i, "text": text_chunks[i], "embeddings": chunk}
-                documents.append(doc_data)
+                for i, chunk in enumerate(embedding_chunks):
+                    # Add to Faiss index first to get the index position
+                    self.faiss_idx.add(np.array([chunk], dtype=np.float32))
+                    # Store document with the corresponding Faiss index
+                    doc_data = {"doc_id": doc.doc_id, "chunk_idx": i, "text": text_chunks[i], "embeddings": chunk}
+                    documents.append(doc_data)
+                    pbar.update(1)  # Update progress for each chunk processed
 
-            # Mark file as processed after successful embedding generation
-            if documents:  # Only mark as processed if documents were created
-                self._mark_file_as_processed(doc.doc_id)
-                logging.info(f"Marked {doc.doc_id} as processed in file_metadata collection")
+                # Mark file as processed after successful embedding generation
+                if documents:  # Only mark as processed if documents were created
+                    self._mark_file_as_processed(doc.doc_id)
+                    logging.info(f"Marked {doc.doc_id} as processed in file_metadata collection")
 
         logging.info("Inserting documents into logs collection")
         if documents:
@@ -145,23 +166,54 @@ class MongoDBVectorStore(VectorStore):
         if len(query_embedding_array.shape) == 1:
             query_embedding_array = query_embedding_array.reshape(1, -1)
         
-        # Search in Faiss index
+        # Search in Faiss index for semantic similarity
         distances, indices = self.faiss_idx.search(query_embedding_array, k)
         
-        results = []
-        logging.info("Iterating through indices to retrieve documents")
+        # First, try to find exact phrase matches in the text chunks
+        exact_matches = []
+        partial_matches = []
         
+        # Search for exact phrase matches using MongoDB text search
+        try:
+            # Escape special characters for regex search
+            escaped_query = re.escape(query.strip())
+            exact_match_docs = list(self.logs_collection.find({
+                "text": {"$regex": escaped_query, "$options": "i"}  # case-insensitive
+            }).limit(k))
+            
+            for doc in exact_match_docs:
+                doc['score'] = 1.0  # High score for exact matches
+                exact_matches.append(doc)
+        except Exception as e:
+            logging.warning(f"Text search failed: {e}")
+        
+        # If we found exact matches, prioritize them
+        results = exact_matches.copy()
+        
+        # Add semantic similarity results, avoiding duplicates
         if indices is not None and len(indices) > 0:
-            # Get all documents from the collection to match with Faiss results
             all_docs = list(self.logs_collection.find())
             
             for i in indices[0]:
                 if i >= 0 and i < len(all_docs):  # Check if index is valid
-                    results.append(all_docs[i])
-                elif i >= 0:
-                    logging.warning("Faiss index %d out of range for documents list", i)
+                    semantic_doc = all_docs[i]
+                    # Avoid adding duplicate documents that were already found as exact matches
+                    is_duplicate = any(
+                        exact_doc['doc_id'] == semantic_doc['doc_id'] and 
+                        exact_doc['chunk_idx'] == semantic_doc['chunk_idx'] 
+                        for exact_doc in exact_matches
+                    )
+                    
+                    if not is_duplicate:
+                        # Add semantic score based on distance
+                        semantic_doc['score'] = 0.5  # Lower priority than exact matches
+                        results.append(semantic_doc)
         
-        return results
+        # Sort results by score (exact matches first)
+        results.sort(key=lambda x: x.get('score', 0.1), reverse=True)
+        
+        # Return top-k results
+        return results[:k]
 
 
 # Example usage

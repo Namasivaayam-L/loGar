@@ -33,7 +33,7 @@ VECTOR_IDX = os.getenv("VECTOR_IDX")
 LOGS_DIR = os.getenv("LOGS_DIR")
 EMBED_MODEL = os.getenv("EMBED_MODEL")
 MONGODB_CLIENT = pymongo.MongoClient(MONGODB_HOST, int(MONGODB_PORT))
-EMBEDDINGS_MODEL = CodeBERTEmbeddings(model_name=EMBED_MODEL)
+EMBEDDINGS_MODEL = SentenceTransformerEmbeddings(model_name=EMBED_MODEL)
 
 
 def initialize_vector_store_and_log_reader():

@@ -1,7 +1,7 @@
 import os
 import chardet
 from typing import List
-from llama_index.core import Document
+from langchain_core.documents import Document
 
 class LogDirectoryReader:
     def __init__(self, directory_path: str, embeddings_model):
@@ -27,17 +27,13 @@ class LogDirectoryReader:
                 # The vector store will handle duplicate checking and embedding generation
                 log_documents.append(
                     Document(
-                        doc_id=file_path,
-                        text=content,
+                        page_content=content,
                         metadata={
+                            "file_path": file_path,
                             "file_name": filename,
                             "category": "log",
                             "author": "Namasivaayam L",
-                        },
-                        excluded_llm_metadata_keys=["file_name"],
-                        metadata_seperator="::",
-                        metadata_template="{key}=>{value}",
-                        text_template="Metadata: {metadata_str}\n-----\nContent: {content}",
+                        }
                     )
                 )
 

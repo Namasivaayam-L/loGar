@@ -9,7 +9,9 @@
 -   **Log Ingestion**: 📂 Process log files from directories and convert content into searchable embeddings.
 -   **Flexible Embeddings**: 🧠 Supports CodeBERT, SentenceTransformer, FAISS, and HNSW for efficient embedding generation and storage.
 -   **MongoDB Vector Store**: 🗄️ Stores embeddings and metadata in MongoDB for high-performance similarity searches.
--   **RAG-powered QA**: 💬 Fetches relevant log chunks to enable intelligent QA using open-source Large Language Models (LLMs).
+-   **Dual Query Modes**: 🔄 Choose between simple vector search or Agentic RAG for advanced log analysis.
+-   **Agentic RAG with Gemini**: 🤖 Uses Google's Gemini models for intelligent, context-aware log analysis and QA.
+-   **LangGraph Workflow**: 🔄 Structured agent workflows for systematic log investigation and error tracking.
 
 ---
 
@@ -20,7 +22,8 @@
 | Language            | Python 3.8+                             |
 | Database            | MongoDB                                 |
 | Embeddings          | CodeBERT, SentenceTransformer, FAISS, HNSW |
-| QA Model            | Open-source LLMs (for RAG)              |
+| QA Model            | Google's Gemini (via LangChain)         |
+| Agent Framework     | LangGraph                               |
 | Acceleration        | NVIDIA GPU (recommended)                |
 
 ---
@@ -52,6 +55,8 @@ MONGODB_COLLECTION_NAME=logar_collection
 VECTOR_IDX=log_vector_index
 LOGS_DIR=path/to/your/log/files # 👈 IMPORTANT: Update this path!
 EMBED_MODEL=microsoft/codebert-base
+GOOGLE_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 ### 3. Prepare Temporary Directory
@@ -72,23 +77,36 @@ Run the main script to process your logs:
 python main.py
 ```
 
-### 2. Retrieve Log Chunks
+### 2. Choose Query Mode
 
-Example Python snippet for retrieving relevant log chunks:
+The system offers two query modes:
 
-```python
-import vector_store # Assuming vector_store is initialized
-# ... (MongoDB connection, embedding model setup)
-
-query = "error logs from authentication service"
-retrieved_chunks = vector_store.similarity_search_with_text(query=query, k=5)
-for chunk in retrieved_chunks:
-    print(chunk)
+**Mode 1 - Simple Search**: Fast retrieval of similar log chunks
+```bash
+# Enter mode 1 when prompted
+# Enter your query: "error authentication"
+# Enter number of results: 5
 ```
 
-### 3. Perform Question Answering
+**Mode 2 - Agentic RAG**: Detailed analysis using Gemini LLM
+```bash
+# Enter mode 2 when prompted
+# Enter your query: "What caused the authentication service downtime at 3 AM?"
+```
 
-Integrate an open-source LLM with the retrieved chunks for advanced QA.
+### 3. Advanced Log Analysis with Agentic RAG
+
+For complex log analysis questions, use Agentic mode which provides:
+
+- 🤖 **Contextual Analysis**: Gemini-powered interpretation of log patterns
+- 📊 **Error Investigation**: Detailed root cause analysis
+- 🎯 **Progress Tracking**: Workflow and sequence analysis
+- 📎 **Citations**: References to relevant log chunks with scores
+
+Example queries:
+- "Analyze the authentication errors in the last batch"
+- "What workflow steps led to this service crash?"
+- "Track the progress of database connection issues"
 
 ---
 
@@ -97,7 +115,8 @@ Integrate an open-source LLM with the retrieved chunks for advanced QA.
 -   [x] Log ingestion and embedding generation
 -   [x] Vector store integration with MongoDB
 -   [x] Retrieve log chunks based on similarity
--   [ ] Integrate an open-source LLM for RAG-based QA
+-   [x] Integrate Gemini LLM for Agentic RAG-based QA
+-   [ ] Add multi-agent workflows for complex analysis
 -   [ ] Optimize chunking strategy for large embeddings
 
 ---
@@ -106,14 +125,19 @@ Integrate an open-source LLM with the retrieved chunks for advanced QA.
 
 ```
 .
-├── main.py                     # Entry point for log ingestion and processing
+├── main.py                     # Enhanced entry point with dual-mode querying (simple search + agentic RAG)
+├── agentic_rag/                # Agentic RAG system components
+│   ├── __init__.py            # Package initialization
+│   ├── agent_core.py          # LogAnalysisAgent class with Gemini integration
+│   └── langgraph_workflow.py  # LangGraph workflow for structured analysis
 ├── vector_store/               # Core vector store functionalities
 │   ├── log_dir_reader.py       # Reads and preprocesses log files
 │   ├── embeddings.py           # Handles embedding model implementations
 │   └── mongo_vector_store.py   # MongoDB integration for vector storage
 ├── config/                     # Configuration files
-│   └── .env                    # Environment variables for MongoDB and models
+│   └── .env                    # Environment variables for MongoDB, models, and API keys
 ├── temp/                       # Temporary storage for intermediate embeddings (e.g., `temp/np_vecs`)
+├── logs/                       # Sample log files for testing
 ├── requirements.txt            # Python dependencies
 └── README.md                   # Project documentation
 ```

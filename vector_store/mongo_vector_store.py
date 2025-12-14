@@ -10,6 +10,7 @@ import re
 from tqdm import tqdm
 import faiss
 from langchain_core.embeddings import Embeddings
+import os
 
 class MongoDBVectorStore(VectorStore):
     def __init__(self, db_name, collection_name, embeddings_model, vector_index_name, mongodb_client):
@@ -53,6 +54,69 @@ class MongoDBVectorStore(VectorStore):
         # Create text index for exact phrase matching
         self.logs_collection.create_index([("text", pymongo.TEXT)])
         logging.info("Index created successfully")
+
+        # Check if we need to rebuild FAISS index from MongoDB data
+        self._rebuild_faiss_index_if_needed()
+
+    def _rebuild_faiss_index_if_needed(self):
+        """Check if FAISS index needs to be rebuilt from MongoDB data."""
+        try:
+            # Check how many documents we have in MongoDB
+            mongo_doc_count = self.logs_collection.count_documents({})
+
+            if mongo_doc_count == 0:
+                logging.info("No documents in MongoDB, skipping FAISS rebuild")
+                return
+
+            # Check if FAISS index is empty (by attempting a small search)
+            # If FAISS is empty, indices will be None or empty
+            try:
+                test_distances, test_indices = self.faiss_idx.search(np.random.rand(1, self.embedding_dim).astype(np.float32), 1)
+                faiss_has_data = test_indices is not None and len(test_indices) > 0 and len(test_indices[0]) > 0
+            except Exception:
+                faiss_has_data = False
+
+            if not faiss_has_data:
+                logging.info(f"FAISS index is empty but MongoDB has {mongo_doc_count} documents. Rebuilding FAISS index...")
+                self._rebuild_faiss_index_from_mongodb()
+            else:
+                logging.info("FAISS index appears to be in sync with MongoDB")
+        except Exception as e:
+            logging.warning(f"Error checking FAISS index sync: {e}")
+
+    def _rebuild_faiss_index_from_mongodb(self):
+        """Rebuild FAISS index by loading all embeddings from MongoDB."""
+        try:
+            logging.info("Starting FAISS index rebuild from MongoDB...")
+
+            # Get all embeddings from MongoDB
+            cursor = self.logs_collection.find({}, {"embeddings": 1})
+            embeddings = []
+            failed_count = 0
+
+            for doc in tqdm(cursor, desc="Rebuilding FAISS index from MongoDB"):
+                embedding = doc.get("embeddings")
+                if embedding is not None:
+                    # Convert to numpy array for FAISS
+                    emb_array = np.array(embedding, dtype=np.float32)
+                    embeddings.append(emb_array)
+                else:
+                    failed_count += 1
+
+            if failed_count > 0:
+                logging.warning(f"Skipped {failed_count} documents with missing embeddings")
+
+            if embeddings:
+                # Convert to numpy array and add to FAISS
+                embeddings_array = np.vstack(embeddings)
+                self.faiss_idx.add(embeddings_array)
+                logging.info(f"Successfully rebuilt FAISS index with {len(embeddings)} vectors")
+            else:
+                logging.warning("No valid embeddings found in MongoDB to rebuild FAISS index")
+
+        except Exception as e:
+            logging.error(f"Error rebuilding FAISS index: {e}")
+            raise
 
     def _calculate_file_hash(self, file_path):
         """Calculate SHA256 hash of file content"""

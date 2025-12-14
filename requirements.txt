@@ -8,3 +8,6 @@ sentence-transformers
 torch
 langchain-community
 langchain-core
+langgraph
+google-generativeai
+langchain-google-genai

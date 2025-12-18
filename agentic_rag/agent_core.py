@@ -41,22 +41,23 @@ class LogAnalysisAgent:
     def _setup_prompts(self):
         """Setup prompts for log analysis tasks."""
         self.analysis_prompt = PromptTemplate(
-            template="""You are an expert log analysis assistant. Analyze the following log information and answer the user's query.
+            template="""
+                You are an expert log analysis assistant. Analyze the following log information and answer the user's query.
+                CONTEXT (Retrieved Log Chunks):
+                {context}
 
-CONTEXT (Retrieved Log Chunks):
-{context}
+                USER QUERY: {query}
 
-USER QUERY: {query}
+                INSTRUCTIONS:
+                1. Focus specifically on the retrieved log chunks provided above
+                2. Provide detailed, technical analysis of errors and issues
+                3. If the logs show progress or workflow, summarize the key steps
+                4. Be precise about timestamps, error messages, and root causes
+                5. If the information is insufficient, say so clearly
+                6. Structure your response for clarity with headings if multiple issues are found
 
-INSTRUCTIONS:
-1. Focus specifically on the retrieved log chunks provided above
-2. Provide detailed, technical analysis of errors and issues
-3. If the logs show progress or workflow, summarize the key steps
-4. Be precise about timestamps, error messages, and root causes
-5. If the information is insufficient, say so clearly
-6. Structure your response for clarity with headings if multiple issues are found
-
-ANALYSIS:""",
+                ANALYSIS:
+                """,
             input_variables=["context", "query"]
         )
 

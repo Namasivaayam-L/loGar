@@ -1,3 +1,4 @@
 logar
 __pycache__
 temp/
+config/.env
